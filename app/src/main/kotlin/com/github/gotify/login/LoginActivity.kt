@@ -3,7 +3,6 @@ package com.github.gotify.login
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -98,7 +97,7 @@ internal class LoginActivity : AppCompatActivity() {
         binding.gotifyUrlEditext.setText(myServerUrl)
         binding.gotifyUrlEditext.isEnabled = false 
         
-        // 2. 启动自动注册与登录 (带延迟和异常保护)
+        // 2. 启动自动注册与登录
         startAutoRegisterAndLoginSafe(myServerUrl)
     }
 
@@ -199,6 +198,8 @@ internal class LoginActivity : AppCompatActivity() {
         val password = binding.passwordEditext.text.toString()
         binding.login.visibility = View.GONE
         binding.loginProgress.visibility = View.VISIBLE
+        
+        // 如果 settings.url 为空，这里就会崩。我们在自动登录逻辑里修复了它。
         val client = ClientFactory.basicAuth(settings, tempSslSettings(), username, password)
         client.createService(UserApi::class.java)
             .currentUser()
@@ -266,13 +267,13 @@ internal class LoginActivity : AppCompatActivity() {
 
         Thread {
             try {
-                // ★ 1. 强制延迟 1.5 秒，防止 App 还没启动完就执行逻辑
+                // 1. 强制延迟 1.5 秒
                 Thread.sleep(1500)
 
-                // ★ 2. 尝试注册
+                // 2. 尝试注册
                 val url = URL(serverUrl.trimEnd('/') + "/user")
                 val conn = url.openConnection() as HttpURLConnection
-                conn.connectTimeout = 5000 // 防止卡死
+                conn.connectTimeout = 5000 
                 conn.readTimeout = 5000
                 conn.requestMethod = "POST"
                 conn.doOutput = true
@@ -281,22 +282,31 @@ internal class LoginActivity : AppCompatActivity() {
                 val jsonInput = "{\"name\":\"$username\", \"pass\":\"$password\"}"
                 OutputStreamWriter(conn.outputStream).use { it.write(jsonInput) }
                 
-                // 读取一下返回码，确保请求发送完毕
-                // 即使是 4xx 错误（用户已存在），我们也会在 catch 后继续尝试登录
                 try { conn.responseCode } catch (e: Exception) { /* ignore */ }
 
                 prefs.edit().putString("auto_user", username).putString("auto_pass", password).apply()
 
-                // ★ 3. 只有当界面还在的时候才执行登录
+                // ★★★ 3. 执行登录（包含防崩修复） ★★★
                 runOnUiThread {
                     if (!isFinishing && !isDestroyed) {
+                        // 1. 填充 UI
+                        binding.gotifyUrlEditext.setText(serverUrl)
                         binding.usernameEditext.setText(username)
                         binding.passwordEditext.setText(password)
+                        
+                        // ★★★ 2. 关键修复：必须先把 URL 保存到 settings，否则点击登录会报空指针崩溃 ★★★
+                        settings.url = serverUrl
+
+                        // 3. 强制显示按钮（防止逻辑卡在 Check URL 界面）
+                        binding.username.visibility = View.VISIBLE
+                        binding.password.visibility = View.VISIBLE
+                        binding.login.visibility = View.VISIBLE
+                        
+                        // 4. 点击登录
                         binding.login.performClick() 
                     }
                 }
             } catch (e: Exception) {
-                // 如果出错了（比如没网），不做任何事，避免崩溃
                 e.printStackTrace()
             }
         }.start()
