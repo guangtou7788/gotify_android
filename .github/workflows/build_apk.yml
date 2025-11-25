@@ -1,17 +1,17 @@
 name: Build Debug APK
 
 on:
-  workflow_dispatch: # 允许手动点击按钮触发
+  workflow_dispatch: # 允许手动触发
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4       # <--- 这里改成了 v4
 
     - name: Set up JDK 17
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@v4     # <--- 这里也建议改成 v4
       with:
         java-version: '17'
         distribution: 'temurin'
@@ -24,7 +24,7 @@ jobs:
       run: ./gradlew assembleDebug
 
     - name: Upload APK
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4  # <--- ★★★ 这里必须改成 v4，否则报错 ★★★
       with:
         name: gotify-custom-apk
         path: app/build/outputs/apk/debug/app-debug.apk
