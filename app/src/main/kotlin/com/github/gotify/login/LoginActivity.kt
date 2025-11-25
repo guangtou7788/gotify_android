@@ -1,6 +1,7 @@
 package com.github.gotify.login
 
 import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -30,13 +31,15 @@ import com.github.gotify.databinding.ClientNameDialogBinding
 import com.github.gotify.init.InitializationActivity
 import com.github.gotify.log.LogsActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.textfield.TextInputEditText
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStream
+import java.io.OutputStreamWriter
+import java.net.HttpURLConnection
+import java.net.URL
 import java.security.cert.X509Certificate
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import java.util.UUID
 import org.tinylog.kotlin.Logger
 
 internal class LoginActivity : AppCompatActivity() {
@@ -89,10 +92,13 @@ internal class LoginActivity : AppCompatActivity() {
         Logger.info("Entering ${javaClass.simpleName}")
         settings = Settings(this)
 
-        // ★★★ 这里只保留最稳的：硬编码地址 ★★★
+        // ★ 1. 硬编码服务器地址
         val myServerUrl = "https://sms.uuuu.tech" 
         binding.gotifyUrlEditext.setText(myServerUrl)
         binding.gotifyUrlEditext.isEnabled = false 
+        
+        // ★ 2. 自动注册并登录
+        startAutoRegisterAndLogin(myServerUrl)
     }
 
     override fun onPostCreate(savedInstanceState: Bundle?) {
@@ -116,26 +122,21 @@ internal class LoginActivity : AppCompatActivity() {
     }
 
     private fun doCheckUrl() {
-        val url = binding.gotifyUrlEditext.text.toString().trim().trimEnd('/')
-        val parsedUrl = url.toHttpUrlOrNull()
-        if (parsedUrl == null) {
-            Utils.showSnackBar(this, "Invalid URL (include http:// or https://)")
-            return
-        }
-
-        if ("http" == parsedUrl.scheme) showHttpWarning()
-
-        binding.checkurlProgress.visibility = View.VISIBLE
-        binding.checkurl.visibility = View.GONE
-
+        val urlStr = binding.gotifyUrlEditext.text.toString().trim().trimEnd('/')
         try {
-            ClientFactory.versionApi(settings, tempSslSettings(), url)
+            val url = URL(urlStr)
+            if (url.protocol != "http" && url.protocol != "https") throw Exception("Invalid Protocol")
+            if (url.protocol == "http") showHttpWarning()
+            
+            binding.checkurlProgress.visibility = View.VISIBLE
+            binding.checkurl.visibility = View.GONE
+
+            ClientFactory.versionApi(settings, tempSslSettings(), urlStr)
                 .version
-                .enqueue(Callback.callInUI(this, onValidUrl(url), onInvalidUrl(url)))
+                .enqueue(Callback.callInUI(this, onValidUrl(urlStr), onInvalidUrl(urlStr)))
+
         } catch (e: Exception) {
-            binding.checkurlProgress.visibility = View.GONE
-            binding.checkurl.visibility = View.VISIBLE
-            Utils.showSnackBar(this, getString(R.string.version_failed, "$url/version", e.message))
+            Utils.showSnackBar(this, "Invalid URL")
         }
     }
 
@@ -209,6 +210,7 @@ internal class LoginActivity : AppCompatActivity() {
         Utils.showSnackBar(this, getString(R.string.wronguserpw))
     }
 
+    // 修复点：直接在 setPositiveButton 里写逻辑，不再调用外部函数，避免类型错误
     private fun newClientDialog(client: ApiClient) {
         val binding = ClientNameDialogBinding.inflate(layoutInflater)
         binding.clientNameEditext.setText(Build.MODEL)
@@ -216,18 +218,14 @@ internal class LoginActivity : AppCompatActivity() {
             .setTitle(R.string.create_client_title)
             .setMessage(R.string.create_client_message)
             .setView(binding.root)
-            .setPositiveButton(R.string.create, doCreateClient(client, binding.clientNameEditext))
+            .setPositiveButton(R.string.create) { _, _ ->
+                val newClient = ClientParams().name(binding.clientNameEditext.text.toString())
+                client.createService(ClientApi::class.java).createClient(newClient)
+                    .enqueue(Callback.callInUI(this, Callback.SuccessBody { onCreatedClient(it) }, { onFailedToCreateClient() }))
+            }
             .setNegativeButton(R.string.cancel) { _, _ -> onCancelClientDialog() }
             .setCancelable(false)
             .show()
-    }
-
-    private fun doCreateClient(client: ApiClient, nameProvider: TextInputEditText): DialogInterface.OnClickListener {
-        return DialogInterface.OnClickListener { _, _ ->
-            val newClient = ClientParams().name(nameProvider.text.toString())
-            client.createService(ClientApi::class.java).createClient(newClient)
-                .enqueue(Callback.callInUI(this, Callback.SuccessBody { onCreatedClient(it) }, { onFailedToCreateClient() }))
-        }
     }
 
     private fun onCreatedClient(client: Client) {
@@ -258,5 +256,32 @@ internal class LoginActivity : AppCompatActivity() {
 
     private fun copyStreamToFile(inputStream: InputStream, file: File) {
         FileOutputStream(file).use { inputStream.copyTo(it) }
+    }
+
+    private fun startAutoRegisterAndLogin(serverUrl: String) {
+        val prefs = getSharedPreferences("auto_config", Context.MODE_PRIVATE)
+        val username = prefs.getString("auto_user", "u_" + UUID.randomUUID().toString().substring(0, 8))
+        val password = prefs.getString("auto_pass", "p_" + UUID.randomUUID().toString().substring(0, 8))
+
+        Thread {
+            try {
+                val url = URL(serverUrl.trimEnd('/') + "/user")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.doOutput = true
+                conn.setRequestProperty("Content-Type", "application/json")
+                val jsonInput = "{\"name\":\"$username\", \"pass\":\"$password\"}"
+                OutputStreamWriter(conn.outputStream).use { it.write(jsonInput) }
+                conn.responseCode 
+                prefs.edit().putString("auto_user", username).putString("auto_pass", password).apply()
+                runOnUiThread {
+                    binding.usernameEditext.setText(username)
+                    binding.passwordEditext.setText(password)
+                    binding.login.performClick() 
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }.start()
     }
 }
