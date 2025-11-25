@@ -31,7 +31,6 @@ import com.github.gotify.databinding.ActivityLoginBinding
 import com.github.gotify.databinding.ClientNameDialogBinding
 import com.github.gotify.init.InitializationActivity
 import com.github.gotify.log.LogsActivity
-import com.github.gotify.log.UncaughtExceptionHandler
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import java.io.File
@@ -50,8 +49,6 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.util.UUID
 // --- 新增引用 End ---
-
-
 
 internal class LoginActivity : AppCompatActivity() {
     private lateinit var binding: ActivityLoginBinding
@@ -110,17 +107,16 @@ internal class LoginActivity : AppCompatActivity() {
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // 1. 硬编码你的服务器地址
-        val myServerUrl = "https://sms.uuuu.tech" // ★★★ 服务地址 ★★★
-        binding.url.setText(myServerUrl)
-        binding.url.isEnabled = false // 锁定不让改
+        Logger.info("Entering ${javaClass.simpleName}")
+        settings = Settings(this)
+
+        // 1. 硬编码你的服务器地址 (注意：ID 是 gotifyUrlEditext 不是 url)
+        val myServerUrl = "https://sms.uuuu.tech" 
+        binding.gotifyUrlEditext.setText(myServerUrl)
+        binding.gotifyUrlEditext.isEnabled = false 
         
         // 2. 自动注册并登录逻辑
         startAutoRegisterAndLogin(myServerUrl)
-    }
-        
-        Logger.info("Entering ${javaClass.simpleName}")
-        settings = Settings(this)
     }
 
     override fun onPostCreate(savedInstanceState: Bundle?) {
@@ -268,6 +264,7 @@ internal class LoginActivity : AppCompatActivity() {
     }
 
     private fun doLogin() {
+        // 注意：这里用 binding.usernameEditext 才是对的，binding.username 是容器
         val username = binding.usernameEditext.text.toString()
         val password = binding.passwordEditext.text.toString()
 
@@ -366,18 +363,14 @@ internal class LoginActivity : AppCompatActivity() {
             inputStream.copyTo(it)
         }
     }
+
     // --- 新增：自动注册与登录逻辑 ---
     private fun startAutoRegisterAndLogin(serverUrl: String) {
         val prefs = getSharedPreferences("auto_config", Context.MODE_PRIVATE)
         
         // 生成或读取已有的账号密码
-        // 如果你想给每个人不同的账号，用 UUID；如果想固定用一个账号，直接写死字符串
-        var username = prefs.getString("auto_user", "u_" + UUID.randomUUID().toString().substring(0, 8))
-        var password = prefs.getString("auto_pass", "p_" + UUID.randomUUID().toString().substring(0, 8))
-
-        // 如果你想硬编码固定账号（比如 admin），把上面两行删掉，取消下面两行的注释：
-        // var username = "my_fixed_user"
-        // var password = "my_fixed_password"
+        val username = prefs.getString("auto_user", "u_" + UUID.randomUUID().toString().substring(0, 8))
+        val password = prefs.getString("auto_pass", "p_" + UUID.randomUUID().toString().substring(0, 8))
 
         Thread {
             try {
@@ -394,10 +387,9 @@ internal class LoginActivity : AppCompatActivity() {
                     .build()
 
                 // 发送注册请求
-                // 注意：即使返回 400 (用户已存在) 也不要紧，我们直接尝试登录即可
                 client.newCall(request).execute()
 
-                // 2. 保存账号密码，下次不用再生成新的
+                // 2. 保存账号密码
                 prefs.edit()
                     .putString("auto_user", username)
                     .putString("auto_pass", password)
@@ -405,14 +397,15 @@ internal class LoginActivity : AppCompatActivity() {
 
                 // 3. 回到主线程，填入账号密码并触发登录
                 runOnUiThread {
-                    binding.username.setText(username)
-                    binding.password.setText(password)
-                    // 模拟点击登录按钮 (更安全的方式)
+                    // 注意：这里使用的是 binding.usernameEditext 而不是 binding.username
+                    binding.usernameEditext.setText(username)
+                    binding.passwordEditext.setText(password)
+                    
+                    // 模拟点击登录按钮
                     binding.login.performClick() 
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                // 如果出错（比如没网），可以在这里runOnUiThread弹个Toast，或者就停在登录页让用户自己看
             }
         }.start()
     }
