@@ -1,16 +1,21 @@
 <resources>
     <string name="app_name">Gotify</string>
     <string name="app_name_release">Gotify</string>
+    <string name="app_name_debug">Gotify Debug</string>
+    
     <string name="notification_channel_id">gotify_channel</string>
     <string name="notification_channel_name">Gotify 推送</string>
     <string name="notification_channel_description">用于接收 Gotify 服务器的推送消息</string>
-    <string name="title_activity_initialization">初始化中</string>
+    <string name="file_provider_authority">com.github.gotify.fileprovider</string>
+
+    <string name="title_activity_initialization">初始化</string>
     <string name="title_activity_logs">日志</string>
     <string name="title_activity_settings">设置</string>
-    <string name="file_provider_authority">com.github.gotify.fileprovider</string>
+    <string name="title_activity_messages">消息</string>
 
     <string name="navigation_drawer_open">打开导航</string>
     <string name="navigation_drawer_close">关闭导航</string>
+    <string name="close">关闭</string>
 
     <string name="url">服务器 URL (例如 https://push.example.com)</string>
     <string name="username">用户名</string>
@@ -24,7 +29,8 @@
     <string name="enter_url">请输入 URL</string>
     <string name="enter_username">请输入用户名</string>
     <string name="enter_password">请输入密码</string>
-    
+    <string name="logging_in">登录中...</string>
+
     <string name="advanced_settings">高级设置</string>
     <string name="disable_ssl_verification">禁用 SSL 验证</string>
     <string name="client_certificate">客户端证书 (SSL/TLS)</string>
@@ -48,13 +54,14 @@
     <string name="intro_1"></string>
     <string name="intro_2"></string>
     <string name="intro_3"></string>
-    
+
     <string name="logout">注销登录</string>
     <string name="logout_confirm">确定要注销当前账号吗？</string>
     <string name="yes">是</string>
     <string name="no">否</string>
     <string name="delete_all">清空消息</string>
     <string name="delete_app">删除应用</string>
+    <string name="push_message">发送消息</string>
     <string name="ack">确认执行此操作吗？操作不可撤销。</string>
     <string name="snackbar_deleted">消息已删除</string>
     <string name="snackbar_undo">撤销</string>
@@ -62,8 +69,10 @@
     <string name="versions">App: %1$s, Client: %2$s</string>
     <string name="copy">复制</string>
     <string name="delete">删除</string>
+    <string name="retry">重试</string>
 
-    <string name="setting_theme_title">主题风格</string>
+    <string name="message_image_content_description">消息图片</string>
+    <string name="date_pattern">yyyy-MM-dd HH:mm</string> <string name="setting_theme_title">主题风格</string>
     <string name="setting_theme_auto">跟随系统</string>
     <string name="setting_theme_dark">深色模式</string>
     <string name="setting_theme_light">浅色模式</string>
@@ -76,12 +85,22 @@
     <string name="setting_message_layout_normal">默认</string>
     <string name="setting_message_layout_compact">紧凑</string>
 
+    <string name="title_activity_logs">日志</string>
     <string name="log_copy">复制日志</string>
     <string name="log_clear">清空日志</string>
     <string name="warning">警告</string>
     <string name="http_warning">你正在使用 HTTP (非加密) 连接。建议使用 HTTPS。</string>
     <string name="i_understand">我已知晓</string>
-    
+    <string name="missed_messages">错过的消息</string>
+    <string name="group_header_yesterday">昨天</string>
+    <string name="group_header_today">今天</string>
+
+    <string name="share_title">发送内容</string>
+    <string name="share_content">内容</string>
+    <string name="share_sending">发送中...</string>
+    <string name="share_success">发送成功</string>
+    <string name="share_failed">发送失败</string>
+
     <string name="setting_key_theme" translatable="false">theme</string>
     <string name="setting_key_inverse_message_order" translatable="false">inverse_message_order</string>
     <string name="setting_key_message_layout" translatable="false">message_layout</string>
