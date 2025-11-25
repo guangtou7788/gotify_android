@@ -1,13 +1,18 @@
 <resources>
     <string name="app_name">Gotify</string>
     <string name="app_name_release">Gotify</string>
+    <string name="notification_channel_id">gotify_channel</string>
+    <string name="notification_channel_name">Gotify 推送</string>
+    <string name="notification_channel_description">用于接收 Gotify 服务器的推送消息</string>
+    <string name="title_activity_initialization">初始化中</string>
+    <string name="title_activity_logs">日志</string>
+    <string name="title_activity_settings">设置</string>
+    <string name="file_provider_authority">com.github.gotify.fileprovider</string>
+
     <string name="navigation_drawer_open">打开导航</string>
     <string name="navigation_drawer_close">关闭导航</string>
 
-    <string name="title_activity_settings">设置</string>
-    <string name="title_activity_logs">日志</string>
-
-    <string name="url">服务器 URL (例如 https://my.gotify.net)</string>
+    <string name="url">服务器 URL (例如 https://push.example.com)</string>
     <string name="username">用户名</string>
     <string name="password">密码</string>
     <string name="login">登录</string>
@@ -19,6 +24,7 @@
     <string name="enter_url">请输入 URL</string>
     <string name="enter_username">请输入用户名</string>
     <string name="enter_password">请输入密码</string>
+    
     <string name="advanced_settings">高级设置</string>
     <string name="disable_ssl_verification">禁用 SSL 验证</string>
     <string name="client_certificate">客户端证书 (SSL/TLS)</string>
@@ -33,7 +39,7 @@
     <string name="select_client_failed">无法读取证书文件: %1$s</string>
 
     <string name="create_client_title">设备名称</string>
-    <string name="create_client_message">请为当前设备取个名字 (例如: 我的手机)</string>
+    <string name="create_client_message">请为当前设备取个名字</string>
     <string name="create">确定</string>
     <string name="cancel">取消</string>
     <string name="created_client">设备注册成功</string>
@@ -63,8 +69,8 @@
     <string name="setting_theme_light">浅色模式</string>
     <string name="setting_inverse_message_order_title">消息倒序排列</string>
     <string name="setting_inverse_message_order_summary">开启后，最新消息显示在底部</string>
-    <string name="setting_exclude_from_recent_title">从“最近任务”中隐藏</string>
-    <string name="setting_exclude_from_recent_summary">开启后，App 不会出现在最近任务列表里 (需重启)</string>
+    <string name="setting_exclude_from_recent_title">隐藏任务</string>
+    <string name="setting_exclude_from_recent_summary">从“最近任务”列表中隐藏此 App</string>
     <string name="setting_group_message_layout">消息布局</string>
     <string name="setting_message_layout_title">显示方式</string>
     <string name="setting_message_layout_normal">默认</string>
@@ -72,11 +78,10 @@
 
     <string name="log_copy">复制日志</string>
     <string name="log_clear">清空日志</string>
-    
     <string name="warning">警告</string>
-    <string name="http_warning">你正在使用 HTTP (非加密) 连接。你的密码和消息可能被窃听。建议使用 HTTPS。</string>
+    <string name="http_warning">你正在使用 HTTP (非加密) 连接。建议使用 HTTPS。</string>
     <string name="i_understand">我已知晓</string>
-    <string name="notification_channel_name">Gotify 推送</string>
+    
     <string name="setting_key_theme" translatable="false">theme</string>
     <string name="setting_key_inverse_message_order" translatable="false">inverse_message_order</string>
     <string name="setting_key_message_layout" translatable="false">message_layout</string>
