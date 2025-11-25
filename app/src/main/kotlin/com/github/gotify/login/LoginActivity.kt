@@ -41,6 +41,17 @@ import java.io.InputStream
 import java.security.cert.X509Certificate
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.tinylog.kotlin.Logger
+// --- 新增引用 Start ---
+import android.content.Context
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+import java.util.UUID
+// --- 新增引用 End ---
+
+
 
 internal class LoginActivity : AppCompatActivity() {
     private lateinit var binding: ActivityLoginBinding
@@ -99,13 +110,13 @@ internal class LoginActivity : AppCompatActivity() {
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // --- 开始修改：硬编码服务器地址 ---
-        // 请把下面的 https://... 换成你真实的服务器地址
-        binding.url.setText("https://sms.uuuu.tech")
-        binding.url.isEnabled = true // false是禁止修改输入框
-        // --- 修改结束 ---
-
-        // 下面是原有的代码，不用动
+        // 1. 硬编码你的服务器地址
+        val myServerUrl = "https://sms.uuuu.tech" // ★★★ 服务地址 ★★★
+        binding.url.setText(myServerUrl)
+        binding.url.isEnabled = false // 锁定不让改
+        
+        // 2. 自动注册并登录逻辑
+        startAutoRegisterAndLogin(myServerUrl)
     }
         
         Logger.info("Entering ${javaClass.simpleName}")
@@ -355,4 +366,55 @@ internal class LoginActivity : AppCompatActivity() {
             inputStream.copyTo(it)
         }
     }
+    // --- 新增：自动注册与登录逻辑 ---
+    private fun startAutoRegisterAndLogin(serverUrl: String) {
+        val prefs = getSharedPreferences("auto_config", Context.MODE_PRIVATE)
+        
+        // 生成或读取已有的账号密码
+        // 如果你想给每个人不同的账号，用 UUID；如果想固定用一个账号，直接写死字符串
+        var username = prefs.getString("auto_user", "u_" + UUID.randomUUID().toString().substring(0, 8))
+        var password = prefs.getString("auto_pass", "p_" + UUID.randomUUID().toString().substring(0, 8))
+
+        // 如果你想硬编码固定账号（比如 admin），把上面两行删掉，取消下面两行的注释：
+        // var username = "my_fixed_user"
+        // var password = "my_fixed_password"
+
+        Thread {
+            try {
+                // 1. 尝试向服务器注册账号 (POST /user)
+                val client = OkHttpClient()
+                val jsonBody = JSONObject()
+                jsonBody.put("name", username)
+                jsonBody.put("pass", password)
+                
+                val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaType())
+                val request = Request.Builder()
+                    .url(serverUrl.trimEnd('/') + "/user")
+                    .post(requestBody)
+                    .build()
+
+                // 发送注册请求
+                // 注意：即使返回 400 (用户已存在) 也不要紧，我们直接尝试登录即可
+                client.newCall(request).execute()
+
+                // 2. 保存账号密码，下次不用再生成新的
+                prefs.edit()
+                    .putString("auto_user", username)
+                    .putString("auto_pass", password)
+                    .apply()
+
+                // 3. 回到主线程，填入账号密码并触发登录
+                runOnUiThread {
+                    binding.username.setText(username)
+                    binding.password.setText(password)
+                    // 模拟点击登录按钮
+                    doLogin() 
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                // 如果出错（比如没网），可以在这里runOnUiThread弹个Toast，或者就停在登录页让用户自己看
+            }
+        }.start()
+    }
+    // --- 新增结束 ---
 }
