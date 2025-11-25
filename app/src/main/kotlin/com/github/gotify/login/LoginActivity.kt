@@ -42,8 +42,9 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.security.cert.X509Certificate
 import java.util.UUID
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.tinylog.kotlin.Logger
+
+// 移除了 okhttp3 的引用，改用原生 URL 检查
 
 internal class LoginActivity : AppCompatActivity() {
     private lateinit var binding: ActivityLoginBinding
@@ -56,42 +57,36 @@ internal class LoginActivity : AppCompatActivity() {
     private var clientCertPassword: String? = null
     private lateinit var advancedDialog: AdvancedDialog
 
-    private val caDialogResultLauncher =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            try {
-                require(result.resultCode == RESULT_OK) { "result was ${result.resultCode}" }
-                requireNotNull(result.data) { "file path was null" }
-
-                val uri = result.data!!.data ?: throw IllegalArgumentException("file path was null")
-                val fileStream = contentResolver.openInputStream(uri)
-                    ?: throw IllegalArgumentException("file path was invalid")
+    private val caDialogResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        try {
+            if (result.resultCode == RESULT_OK && result.data != null) {
+                val uri = result.data!!.data!!
+                val fileStream = contentResolver.openInputStream(uri)!!
                 val destinationFile = File(filesDir, CertUtils.CA_CERT_NAME)
                 copyStreamToFile(fileStream, destinationFile)
                 caCertCN = getNameOfCertContent(destinationFile) ?: "unknown"
                 caCertPath = destinationFile.absolutePath
                 advancedDialog.showRemoveCaCertificate(caCertCN!!)
-            } catch (e: Exception) {
-                Utils.showSnackBar(this, getString(R.string.select_ca_failed, e.message))
             }
+        } catch (e: Exception) {
+            Utils.showSnackBar(this, getString(R.string.select_ca_failed, e.message))
         }
+    }
 
-    private val clientCertDialogResultLauncher =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            try {
-                require(result.resultCode == RESULT_OK) { "result was ${result.resultCode}" }
-                requireNotNull(result.data) { "file path was null" }
-
-                val uri = result.data!!.data ?: throw IllegalArgumentException("file path was null")
-                val fileStream = contentResolver.openInputStream(uri)
-                    ?: throw IllegalArgumentException("file path was invalid")
+    private val clientCertDialogResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        try {
+            if (result.resultCode == RESULT_OK && result.data != null) {
+                val uri = result.data!!.data!!
+                val fileStream = contentResolver.openInputStream(uri)!!
                 val destinationFile = File(filesDir, CertUtils.CLIENT_CERT_NAME)
                 copyStreamToFile(fileStream, destinationFile)
                 clientCertPath = destinationFile.absolutePath
                 advancedDialog.showRemoveClientCertificate()
-            } catch (e: Exception) {
-                Utils.showSnackBar(this, getString(R.string.select_client_failed, e.message))
             }
+        } catch (e: Exception) {
+            Utils.showSnackBar(this, getString(R.string.select_client_failed, e.message))
         }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -131,25 +126,22 @@ internal class LoginActivity : AppCompatActivity() {
     }
 
     private fun doCheckUrl() {
-        val url = binding.gotifyUrlEditext.text.toString().trim().trimEnd('/')
-        val parsedUrl = url.toHttpUrlOrNull()
-        if (parsedUrl == null) {
-            Utils.showSnackBar(this, "Invalid URL")
-            return
-        }
-        if ("http" == parsedUrl.scheme) showHttpWarning()
-
-        binding.checkurlProgress.visibility = View.VISIBLE
-        binding.checkurl.visibility = View.GONE
-
+        val urlStr = binding.gotifyUrlEditext.text.toString().trim().trimEnd('/')
+        // 原生 URL 检查，不依赖 OkHttp
         try {
-            ClientFactory.versionApi(settings, tempSslSettings(), url)
+            val url = URL(urlStr)
+            if (url.protocol != "http" && url.protocol != "https") throw Exception("Invalid Protocol")
+            if (url.protocol == "http") showHttpWarning()
+            
+            binding.checkurlProgress.visibility = View.VISIBLE
+            binding.checkurl.visibility = View.GONE
+
+            ClientFactory.versionApi(settings, tempSslSettings(), urlStr)
                 .version
-                .enqueue(Callback.callInUI(this, onValidUrl(url), onInvalidUrl(url)))
+                .enqueue(Callback.callInUI(this, onValidUrl(urlStr), onInvalidUrl(urlStr)))
+
         } catch (e: Exception) {
-            binding.checkurlProgress.visibility = View.GONE
-            binding.checkurl.visibility = View.VISIBLE
-            Utils.showSnackBar(this, getString(R.string.version_failed, "$url/version", e.message))
+            Utils.showSnackBar(this, "Invalid URL")
         }
     }
 
@@ -161,47 +153,23 @@ internal class LoginActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun openLogs() {
-        startActivity(Intent(this, LogsActivity::class.java))
-    }
+    private fun openLogs() { startActivity(Intent(this, LogsActivity::class.java)) }
 
     private fun toggleShowAdvanced() {
         advancedDialog = AdvancedDialog(this, layoutInflater)
-            .onDisableSSLChanged { _, disable ->
-                invalidateUrl()
-                disableSslValidation = disable
-            }
-            .onClickSelectCaCertificate {
-                invalidateUrl()
-                doSelectCertificate(caDialogResultLauncher, R.string.select_ca_file)
-            }
-            .onClickRemoveCaCertificate {
-                invalidateUrl()
-                caCertPath = null
-                clientCertPassword = null
-            }
-            .onClickSelectClientCertificate {
-                invalidateUrl()
-                doSelectCertificate(clientCertDialogResultLauncher, R.string.select_client_file)
-            }
-            .onClickRemoveClientCertificate {
-                invalidateUrl()
-                clientCertPath = null
-            }
+            .onDisableSSLChanged { _, disable -> invalidateUrl(); disableSslValidation = disable }
+            .onClickSelectCaCertificate { invalidateUrl(); doSelectCertificate(caDialogResultLauncher, R.string.select_ca_file) }
+            .onClickRemoveCaCertificate { invalidateUrl(); caCertPath = null; clientCertPassword = null }
+            .onClickSelectClientCertificate { invalidateUrl(); doSelectCertificate(clientCertDialogResultLauncher, R.string.select_client_file) }
+            .onClickRemoveClientCertificate { invalidateUrl(); clientCertPath = null }
             .onClose { newPassword -> clientCertPassword = newPassword }
             .show(disableSslValidation, caCertPath, caCertCN, clientCertPath, clientCertPassword)
     }
 
     private fun doSelectCertificate(resultLauncher: ActivityResultLauncher<Intent>, @StringRes descriptionId: Int) {
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-            type = "*/*"
-            addCategory(Intent.CATEGORY_OPENABLE)
-        }
-        try {
-            resultLauncher.launch(Intent.createChooser(intent, getString(descriptionId)))
-        } catch (_: ActivityNotFoundException) {
-            Utils.showSnackBar(this, getString(R.string.please_install_file_browser))
-        }
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply { type = "*/*"; addCategory(Intent.CATEGORY_OPENABLE) }
+        try { resultLauncher.launch(Intent.createChooser(intent, getString(descriptionId))) }
+        catch (_: ActivityNotFoundException) { Utils.showSnackBar(this, getString(R.string.please_install_file_browser)) }
     }
 
     private fun getNameOfCertContent(file: File): String? {
@@ -233,10 +201,8 @@ internal class LoginActivity : AppCompatActivity() {
     private fun doLogin() {
         val username = binding.usernameEditext.text.toString()
         val password = binding.passwordEditext.text.toString()
-
         binding.login.visibility = View.GONE
         binding.loginProgress.visibility = View.VISIBLE
-
         val client = ClientFactory.basicAuth(settings, tempSslSettings(), username, password)
         client.createService(UserApi::class.java)
             .currentUser()
@@ -252,7 +218,6 @@ internal class LoginActivity : AppCompatActivity() {
     private fun newClientDialog(client: ApiClient) {
         val binding = ClientNameDialogBinding.inflate(layoutInflater)
         binding.clientNameEditext.setText(Build.MODEL)
-
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.create_client_title)
             .setMessage(R.string.create_client_message)
@@ -266,8 +231,7 @@ internal class LoginActivity : AppCompatActivity() {
     private fun doCreateClient(client: ApiClient, nameProvider: TextInputEditText): DialogInterface.OnClickListener {
         return DialogInterface.OnClickListener { _, _ ->
             val newClient = ClientParams().name(nameProvider.text.toString())
-            client.createService(ClientApi::class.java)
-                .createClient(newClient)
+            client.createService(ClientApi::class.java).createClient(newClient)
                 .enqueue(Callback.callInUI(this, Callback.SuccessBody { onCreatedClient(it) }, { onFailedToCreateClient() }))
         }
     }
@@ -302,7 +266,7 @@ internal class LoginActivity : AppCompatActivity() {
         FileOutputStream(file).use { inputStream.copyTo(it) }
     }
 
-    // --- 纯 Java 自动注册 (不依赖 org.json，不依赖 OkHttp) ---
+    // --- 纯 Java 自动注册逻辑 ---
     private fun startAutoRegisterAndLogin(serverUrl: String) {
         val prefs = getSharedPreferences("auto_config", Context.MODE_PRIVATE)
         val username = prefs.getString("auto_user", "u_" + UUID.randomUUID().toString().substring(0, 8))
@@ -315,17 +279,12 @@ internal class LoginActivity : AppCompatActivity() {
                 conn.requestMethod = "POST"
                 conn.doOutput = true
                 conn.setRequestProperty("Content-Type", "application/json")
-                
-                // 手动拼写 JSON 字符串，避免 import 问题
                 val jsonInput = "{\"name\":\"$username\", \"pass\":\"$password\"}"
                 
                 OutputStreamWriter(conn.outputStream).use { it.write(jsonInput) }
+                conn.responseCode // 触发请求
                 
-                val responseCode = conn.responseCode
-                // 不管注册成功(200)还是失败(400已存在)，都继续登录
-
                 prefs.edit().putString("auto_user", username).putString("auto_pass", password).apply()
-
                 runOnUiThread {
                     binding.usernameEditext.setText(username)
                     binding.passwordEditext.setText(password)
