@@ -44,7 +44,7 @@ import java.security.cert.X509Certificate
 import java.util.UUID
 import org.tinylog.kotlin.Logger
 
-// 移除了 okhttp3 的引用，改用原生 URL 检查
+// 已彻底移除 okhttp3 和 json 的所有引用，保证编译通过
 
 internal class LoginActivity : AppCompatActivity() {
     private lateinit var binding: ActivityLoginBinding
@@ -96,12 +96,12 @@ internal class LoginActivity : AppCompatActivity() {
         Logger.info("Entering ${javaClass.simpleName}")
         settings = Settings(this)
 
-        // ★★★ 1. 硬编码服务器地址 ★★★
+        // ★ 1. 硬编码服务器地址
         val myServerUrl = "https://sms.uuuu.tech" 
         binding.gotifyUrlEditext.setText(myServerUrl)
         binding.gotifyUrlEditext.isEnabled = false 
         
-        // ★★★ 2. 自动注册并登录 ★★★
+        // ★ 2. 自动注册并登录
         startAutoRegisterAndLogin(myServerUrl)
     }
 
@@ -282,7 +282,7 @@ internal class LoginActivity : AppCompatActivity() {
                 val jsonInput = "{\"name\":\"$username\", \"pass\":\"$password\"}"
                 
                 OutputStreamWriter(conn.outputStream).use { it.write(jsonInput) }
-                conn.responseCode // 触发请求
+                conn.responseCode 
                 
                 prefs.edit().putString("auto_user", username).putString("auto_pass", password).apply()
                 runOnUiThread {
