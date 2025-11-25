@@ -102,8 +102,6 @@ dependencies {
     implementation("com.google.code.gson:gson:2.13.1")
     implementation("com.squareup.retrofit2:retrofit:3.0.0")
     implementation("org.threeten:threetenbp:1.7.1")
-// --- 新增这一行 ---
-    implementation("com.squareup.okhttp3:okhttp:4.11.0")
 }
 
 configurations {
