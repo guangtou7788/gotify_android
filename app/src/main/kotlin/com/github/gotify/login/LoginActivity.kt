@@ -17,7 +17,6 @@ import com.github.gotify.R
 import com.github.gotify.SSLSettings
 import com.github.gotify.Settings
 import com.github.gotify.Utils
-import com.github.gotify.api.ApiException
 import com.github.gotify.api.Callback
 import com.github.gotify.api.Callback.SuccessCallback
 import com.github.gotify.api.CertUtils
@@ -45,7 +44,6 @@ import java.security.cert.X509Certificate
 import java.util.UUID
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.tinylog.kotlin.Logger
-import org.json.JSONObject
 
 internal class LoginActivity : AppCompatActivity() {
     private lateinit var binding: ActivityLoginBinding
@@ -103,7 +101,7 @@ internal class LoginActivity : AppCompatActivity() {
         Logger.info("Entering ${javaClass.simpleName}")
         settings = Settings(this)
 
-        // ★★★ 1. 硬编码服务器地址 (使用正确的 ID) ★★★
+        // ★★★ 1. 硬编码服务器地址 ★★★
         val myServerUrl = "https://sms.uuuu.tech" 
         binding.gotifyUrlEditext.setText(myServerUrl)
         binding.gotifyUrlEditext.isEnabled = false 
@@ -304,7 +302,7 @@ internal class LoginActivity : AppCompatActivity() {
         FileOutputStream(file).use { inputStream.copyTo(it) }
     }
 
-    // --- ★★★ 纯 Java 实现的自动注册逻辑 (无 OkHttp 依赖) ★★★ ---
+    // --- 纯 Java 自动注册 (不依赖 org.json，不依赖 OkHttp) ---
     private fun startAutoRegisterAndLogin(serverUrl: String) {
         val prefs = getSharedPreferences("auto_config", Context.MODE_PRIVATE)
         val username = prefs.getString("auto_user", "u_" + UUID.randomUUID().toString().substring(0, 8))
@@ -312,23 +310,19 @@ internal class LoginActivity : AppCompatActivity() {
 
         Thread {
             try {
-                // 原生 Java 网络请求
                 val url = URL(serverUrl.trimEnd('/') + "/user")
                 val conn = url.openConnection() as HttpURLConnection
                 conn.requestMethod = "POST"
                 conn.doOutput = true
                 conn.setRequestProperty("Content-Type", "application/json")
                 
-                // 构造 JSON 字符串
-                val jsonInput = JSONObject()
-                jsonInput.put("name", username)
-                jsonInput.put("pass", password)
+                // 手动拼写 JSON 字符串，避免 import 问题
+                val jsonInput = "{\"name\":\"$username\", \"pass\":\"$password\"}"
                 
-                OutputStreamWriter(conn.outputStream).use { it.write(jsonInput.toString()) }
+                OutputStreamWriter(conn.outputStream).use { it.write(jsonInput) }
                 
-                // 触发请求
                 val responseCode = conn.responseCode
-                // 不管是 200(成功) 还是 4xx(已存在)，都继续尝试登录
+                // 不管注册成功(200)还是失败(400已存在)，都继续登录
 
                 prefs.edit().putString("auto_user", username).putString("auto_pass", password).apply()
 
