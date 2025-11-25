@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <group android:id="@+id/apps" android:checkableBehavior="single"/>
+    <item
+        android:id="@+id/nav_all_messages"
+        android:icon="@drawable/ic_home"
+        android:title="@string/all_messages"/>
+    <item
+        android:id="@+id/push_message"
+        android:icon="@drawable/ic_cloud_upload"
+        android:title="@string/push_message"
+        android:visible="false"/>
+    <item
+        android:id="@+id/nav_logs"
+        android:icon="@drawable/ic_assignment"
+        android:title="@string/title_activity_logs"/>
+    <item
+        android:id="@+id/settings"
+        android:icon="@drawable/ic_settings"
+        android:title="@string/title_activity_settings"/>
+    <item
+        android:id="@+id/logout"
+        android:icon="@drawable/ic_eject"
+        android:title="@string/logout"/>
+</menu>
