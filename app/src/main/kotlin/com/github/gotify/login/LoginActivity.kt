@@ -96,9 +96,18 @@ internal class LoginActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        UncaughtExceptionHandler.registerCurrentThread()
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // --- 开始修改：硬编码服务器地址 ---
+        // 请把下面的 https://... 换成你真实的服务器地址
+        binding.url.setText("https://sms.uuuu.tech")
+        binding.url.isEnabled = true // false是禁止修改输入框
+        // --- 修改结束 ---
+
+        // 下面是原有的代码，不用动
+    }
+        
         Logger.info("Entering ${javaClass.simpleName}")
         settings = Settings(this)
     }
