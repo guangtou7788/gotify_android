@@ -407,8 +407,8 @@ internal class LoginActivity : AppCompatActivity() {
                 runOnUiThread {
                     binding.username.setText(username)
                     binding.password.setText(password)
-                    // 模拟点击登录按钮
-                    doLogin() 
+                    // 模拟点击登录按钮 (更安全的方式)
+                    binding.login.performClick() 
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
