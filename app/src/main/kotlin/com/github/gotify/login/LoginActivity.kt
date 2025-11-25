@@ -31,6 +31,7 @@ import com.github.gotify.databinding.ClientNameDialogBinding
 import com.github.gotify.init.InitializationActivity
 import com.github.gotify.log.LogsActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.textfield.TextInputEditText
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -92,13 +93,13 @@ internal class LoginActivity : AppCompatActivity() {
         Logger.info("Entering ${javaClass.simpleName}")
         settings = Settings(this)
 
-        // ★ 1. 硬编码服务器地址
+        // 1. 硬编码服务器地址
         val myServerUrl = "https://sms.uuuu.tech" 
         binding.gotifyUrlEditext.setText(myServerUrl)
         binding.gotifyUrlEditext.isEnabled = false 
         
-        // ★ 2. 自动注册并登录
-        startAutoRegisterAndLogin(myServerUrl)
+        // 2. 启动自动注册与登录 (带延迟和异常保护)
+        startAutoRegisterAndLoginSafe(myServerUrl)
     }
 
     override fun onPostCreate(savedInstanceState: Bundle?) {
@@ -210,7 +211,6 @@ internal class LoginActivity : AppCompatActivity() {
         Utils.showSnackBar(this, getString(R.string.wronguserpw))
     }
 
-    // 修复点：直接在 setPositiveButton 里写逻辑，不再调用外部函数，避免类型错误
     private fun newClientDialog(client: ApiClient) {
         val binding = ClientNameDialogBinding.inflate(layoutInflater)
         binding.clientNameEditext.setText(Build.MODEL)
@@ -258,28 +258,45 @@ internal class LoginActivity : AppCompatActivity() {
         FileOutputStream(file).use { inputStream.copyTo(it) }
     }
 
-    private fun startAutoRegisterAndLogin(serverUrl: String) {
+    // --- 安全版自动注册逻辑 ---
+    private fun startAutoRegisterAndLoginSafe(serverUrl: String) {
         val prefs = getSharedPreferences("auto_config", Context.MODE_PRIVATE)
         val username = prefs.getString("auto_user", "u_" + UUID.randomUUID().toString().substring(0, 8))
         val password = prefs.getString("auto_pass", "p_" + UUID.randomUUID().toString().substring(0, 8))
 
         Thread {
             try {
+                // ★ 1. 强制延迟 1.5 秒，防止 App 还没启动完就执行逻辑
+                Thread.sleep(1500)
+
+                // ★ 2. 尝试注册
                 val url = URL(serverUrl.trimEnd('/') + "/user")
                 val conn = url.openConnection() as HttpURLConnection
+                conn.connectTimeout = 5000 // 防止卡死
+                conn.readTimeout = 5000
                 conn.requestMethod = "POST"
                 conn.doOutput = true
                 conn.setRequestProperty("Content-Type", "application/json")
+                
                 val jsonInput = "{\"name\":\"$username\", \"pass\":\"$password\"}"
                 OutputStreamWriter(conn.outputStream).use { it.write(jsonInput) }
-                conn.responseCode 
+                
+                // 读取一下返回码，确保请求发送完毕
+                // 即使是 4xx 错误（用户已存在），我们也会在 catch 后继续尝试登录
+                try { conn.responseCode } catch (e: Exception) { /* ignore */ }
+
                 prefs.edit().putString("auto_user", username).putString("auto_pass", password).apply()
+
+                // ★ 3. 只有当界面还在的时候才执行登录
                 runOnUiThread {
-                    binding.usernameEditext.setText(username)
-                    binding.passwordEditext.setText(password)
-                    binding.login.performClick() 
+                    if (!isFinishing && !isDestroyed) {
+                        binding.usernameEditext.setText(username)
+                        binding.passwordEditext.setText(password)
+                        binding.login.performClick() 
+                    }
                 }
             } catch (e: Exception) {
+                // 如果出错了（比如没网），不做任何事，避免崩溃
                 e.printStackTrace()
             }
         }.start()
