@@ -3,6 +3,7 @@ package com.github.gotify.login
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -212,8 +213,6 @@ internal class LoginActivity : AppCompatActivity() {
 
     private fun newClientDialog(client: ApiClient) {
         val binding = ClientNameDialogBinding.inflate(layoutInflater)
-        
-        // ★★★ 修复点：使用 android.os.Build.MODEL 全名，防止 Import 报错 ★★★
         binding.clientNameEditext.setText(android.os.Build.MODEL)
         
         MaterialAlertDialogBuilder(this)
@@ -260,18 +259,23 @@ internal class LoginActivity : AppCompatActivity() {
         FileOutputStream(file).use { inputStream.copyTo(it) }
     }
 
-    // --- 自动注册与登录 (防闪退版) ---
+    // --- 自动注册与登录 (修改版: 密码规则统一) ---
     private fun startAutoRegisterAndLoginSafe(serverUrl: String) {
         val prefs = getSharedPreferences("auto_config", Context.MODE_PRIVATE)
-        val username = prefs.getString("auto_user", "u_" + UUID.randomUUID().toString().substring(0, 8))
-        val password = prefs.getString("auto_pass", "p_" + UUID.randomUUID().toString().substring(0, 8))
+        
+        // ★★★ 1. 修改生成逻辑：生成8位码，分别用于用户名后缀和密码 ★★★
+        val randomCode = UUID.randomUUID().toString().substring(0, 8)
+        val newUsername = "u_$randomCode"
+        val newPassword = randomCode
+        
+        // 优先读取缓存，如果没有才用新的
+        val username = prefs.getString("auto_user", newUsername)!!
+        val password = prefs.getString("auto_pass", newPassword)!!
 
         Thread {
             try {
-                // 1. 延迟 1.5 秒
-                Thread.sleep(1500)
+                Thread.sleep(1500) // 延迟防闪退
 
-                // 2. 尝试注册
                 val url = URL(serverUrl.trimEnd('/') + "/user")
                 val conn = url.openConnection() as HttpURLConnection
                 conn.connectTimeout = 5000 
@@ -287,14 +291,12 @@ internal class LoginActivity : AppCompatActivity() {
 
                 prefs.edit().putString("auto_user", username).putString("auto_pass", password).apply()
 
-                // 3. 执行登录
                 runOnUiThread {
                     if (!isFinishing && !isDestroyed) {
                         binding.gotifyUrlEditext.setText(serverUrl)
                         binding.usernameEditext.setText(username)
                         binding.passwordEditext.setText(password)
                         
-                        // ★★★ 这里的关键修复一定要有：手动设置 settings.url ★★★
                         settings.url = serverUrl
 
                         binding.username.visibility = View.VISIBLE
