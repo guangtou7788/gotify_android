@@ -37,7 +37,6 @@ import androidx.recyclerview.widget.RecyclerView
 import coil.request.ImageRequest
 import com.github.gotify.BuildConfig
 import com.github.gotify.CoilInstance
-import com.github.gotify.GotifyApp
 import com.github.gotify.MissedMessageUtil
 import com.github.gotify.R
 import com.github.gotify.Settings
@@ -83,13 +82,8 @@ internal class MessagesActivity :
     private val receiver: BroadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             val messageJson = intent.getStringExtra("message")
-            val message = Utils.JSON.fromJson(
-                messageJson,
-                Message::class.java
-            )
-            launchCoroutine {
-                addSingleMessage(message)
-            }
+            val message = Utils.JSON.fromJson(messageJson, Message::class.java)
+            launchCoroutine { addSingleMessage(message) }
         }
     }
 
@@ -98,24 +92,17 @@ internal class MessagesActivity :
         binding = ActivityMessagesBinding.inflate(layoutInflater)
         setContentView(binding.root)
         
-        // --- 新增调用 ---    
+        // ★★★ 启动自动创建 Token 流程 ★★★
         checkAndCreateAppToken()
-        
+
         viewModel = ViewModelProvider(this, MessagesModelFactory(this))[MessagesModel::class.java]
         Logger.info("Entering " + javaClass.simpleName)
         initDrawer()
 
         val layoutManager = LinearLayoutManager(this)
         val messagesView: RecyclerView = binding.messagesView
-        val dividerItemDecoration = DividerItemDecoration(
-            messagesView.context,
-            layoutManager.orientation
-        )
-        listMessageAdapter = ListMessageAdapter(
-            this,
-            viewModel.settings,
-            CoilInstance.get(this)
-        ) { message ->
+        val dividerItemDecoration = DividerItemDecoration(messagesView.context, layoutManager.orientation)
+        listMessageAdapter = ListMessageAdapter(this, viewModel.settings, CoilInstance.get(this)) { message ->
             scheduleDeletion(message)
         }
         addBackPressCallback()
@@ -135,44 +122,33 @@ internal class MessagesActivity :
 
         val swipeRefreshLayout = binding.swipeRefresh
         swipeRefreshLayout.setOnRefreshListener { onRefresh() }
-        binding.drawerLayout.addDrawerListener(
-            object : SimpleDrawerListener() {
-                override fun onDrawerOpened(drawerView: View) {
-                    onBackPressedCallback.isEnabled = true
+        binding.drawerLayout.addDrawerListener(object : SimpleDrawerListener() {
+            override fun onDrawerOpened(drawerView: View) { onBackPressedCallback.isEnabled = true }
+            override fun onDrawerClosed(drawerView: View) {
+                updateAppOnDrawerClose?.let { selectApp ->
+                    updateAppOnDrawerClose = null
+                    viewModel.appId = selectApp
+                    launchCoroutine { updateMessagesForApplication(true, selectApp) }
+                    invalidateOptionsMenu()
                 }
-
-                override fun onDrawerClosed(drawerView: View) {
-                    updateAppOnDrawerClose?.let { selectApp ->
-                        updateAppOnDrawerClose = null
-                        viewModel.appId = selectApp
-                        launchCoroutine {
-                            updateMessagesForApplication(true, selectApp)
-                        }
-                        invalidateOptionsMenu()
-                    }
-                    onBackPressedCallback.isEnabled = false
-                }
+                onBackPressedCallback.isEnabled = false
             }
-        )
+        })
 
         swipeRefreshLayout.isEnabled = false
-        messagesView
-            .viewTreeObserver
-            .addOnScrollChangedListener {
-                val topChild = messagesView.getChildAt(0)
-                if (topChild != null) {
-                    swipeRefreshLayout.isEnabled = topChild.top == 0
-                } else {
-                    swipeRefreshLayout.isEnabled = true
-                }
+        messagesView.viewTreeObserver.addOnScrollChangedListener {
+            val topChild = messagesView.getChildAt(0)
+            if (topChild != null) {
+                swipeRefreshLayout.isEnabled = topChild.top == 0
+            } else {
+                swipeRefreshLayout.isEnabled = true
             }
+        }
 
         val excludeFromRecent = PreferenceManager.getDefaultSharedPreferences(this)
             .getBoolean(getString(R.string.setting_key_exclude_from_recent), false)
         Utils.setExcludeFromRecent(this, excludeFromRecent)
-        launchCoroutine {
-            updateMessagesForApplication(true, viewModel.appId)
-        }
+        launchCoroutine { updateMessagesForApplication(true, viewModel.appId) }
     }
 
     override fun onPostCreate(savedInstanceState: Bundle?) {
@@ -191,9 +167,7 @@ internal class MessagesActivity :
         viewModel.messages.clear()
         launchCoroutine {
             loadMore(viewModel.appId).forEachIndexed { index, message ->
-                if (message.image != null) {
-                    listMessageAdapter.notifyItemChanged(index)
-                }
+                if (message.image != null) listMessageAdapter.notifyItemChanged(index)
             }
         }
     }
@@ -232,32 +206,20 @@ internal class MessagesActivity :
         setSupportActionBar(binding.appBarDrawer.toolbar)
         binding.navView.itemIconTintList = null
         val toggle = ActionBarDrawerToggle(
-            this,
-            binding.drawerLayout,
-            binding.appBarDrawer.toolbar,
-            R.string.navigation_drawer_open,
-            R.string.navigation_drawer_close
+            this, binding.drawerLayout, binding.appBarDrawer.toolbar,
+            R.string.navigation_drawer_open, R.string.navigation_drawer_close
         )
         binding.drawerLayout.addDrawerListener(toggle)
         toggle.syncState()
 
         binding.navView.setNavigationItemSelectedListener(this)
         val headerView = binding.navView.getHeaderView(0)
-
         val settings = viewModel.settings
-
-        val user = headerView.findViewById<TextView>(R.id.header_user)
-        user.text = settings.user?.name
-
-        val connection = headerView.findViewById<TextView>(R.id.header_connection)
-        connection.text = settings.url
-
-        val version = headerView.findViewById<TextView>(R.id.header_version)
-        version.text =
+        headerView.findViewById<TextView>(R.id.header_user).text = settings.user?.name
+        headerView.findViewById<TextView>(R.id.header_connection).text = settings.url
+        headerView.findViewById<TextView>(R.id.header_version).text =
             getString(R.string.versions, BuildConfig.VERSION_NAME, settings.serverVersion)
-
-        val refreshAll = headerView.findViewById<ImageButton>(R.id.refresh_all)
-        refreshAll.setOnClickListener { refreshAll() }
+        headerView.findViewById<ImageButton>(R.id.refresh_all).setOnClickListener { refreshAll() }
     }
 
     private fun addBackPressCallback() {
@@ -272,7 +234,6 @@ internal class MessagesActivity :
     }
 
     override fun onNavigationItemSelected(item: MenuItem): Boolean {
-        // Handle navigation view item clicks here.
         val id = item.itemId
         if (item.groupId == R.id.apps) {
             val app = viewModel.appsHolder.get()[id]
@@ -304,9 +265,7 @@ internal class MessagesActivity :
 
     private fun doLogout() {
         setContentView(R.layout.splash)
-        launchCoroutine {
-            deleteClientAndNavigateToLogin()
-        }
+        launchCoroutine { deleteClientAndNavigateToLogin() }
     }
 
     private fun startLoading() {
@@ -331,20 +290,13 @@ internal class MessagesActivity :
             @SuppressLint("UnspecifiedRegisterReceiverFlag")
             registerReceiver(receiver, filter)
         }
-        launchCoroutine {
-            updateMissedMessages(viewModel.messages.getLastReceivedMessage())
-        }
+        launchCoroutine { updateMissedMessages(viewModel.messages.getLastReceivedMessage()) }
         var selectedIndex = R.id.nav_all_messages
         val appId = viewModel.appId
         if (appId != MessageState.ALL_MESSAGES) {
             val apps = viewModel.appsHolder.get()
-            apps.indices.forEach { index ->
-                if (apps[index].id == appId) {
-                    selectedIndex = index
-                }
-            }
+            apps.indices.forEach { index -> if (apps[index].id == appId) selectedIndex = index }
         }
-        // Force re-render of all items to update relative date-times on app resume.
         listMessageAdapter.notifyDataSetChanged()
         selectAppInMenu(binding.navView.menu.findItem(selectedIndex))
         super.onResume()
@@ -394,14 +346,7 @@ internal class MessagesActivity :
         override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
             super.onDismissed(transientBottomBar, event)
             if (event != DISMISS_EVENT_ACTION && event != DISMISS_EVENT_CONSECUTIVE) {
-                // Execute deletion when the snackbar disappeared without pressing the undo button
-                // DISMISS_EVENT_CONSECUTIVE should be excluded as well, because it would cause the
-                // deletion to be sent to the server twice, since the deletion is sent to the server
-                // in MessageFacade if a message is deleted while another message was already
-                // waiting for deletion.
-                launchCoroutine {
-                    commitDeleteMessage()
-                }
+                launchCoroutine { commitDeleteMessage() }
             }
         }
     }
@@ -412,8 +357,7 @@ internal class MessagesActivity :
         private val background: ColorDrawable
 
         init {
-            val backgroundColorId =
-                ContextCompat.getColor(this@MessagesActivity, R.color.swipeBackground)
+            val backgroundColorId = ContextCompat.getColor(this@MessagesActivity, R.color.swipeBackground)
             val iconColorId = ContextCompat.getColor(this@MessagesActivity, R.color.swipeIcon)
             val drawable = ContextCompat.getDrawable(this@MessagesActivity, R.drawable.ic_delete)
             icon = null
@@ -424,11 +368,7 @@ internal class MessagesActivity :
             background = backgroundColorId.toDrawable()
         }
 
-        override fun onMove(
-            recyclerView: RecyclerView,
-            viewHolder: RecyclerView.ViewHolder,
-            target: RecyclerView.ViewHolder
-        ) = false
+        override fun onMove(r: RecyclerView, v: RecyclerView.ViewHolder, t: RecyclerView.ViewHolder) = false
 
         override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
             val position = viewHolder.adapterPosition
@@ -436,17 +376,9 @@ internal class MessagesActivity :
             scheduleDeletion(message.message)
         }
 
-        override fun onChildDraw(
-            c: Canvas,
-            recyclerView: RecyclerView,
-            viewHolder: RecyclerView.ViewHolder,
-            dX: Float,
-            dY: Float,
-            actionState: Int,
-            isCurrentlyActive: Boolean
-        ) {
+        override fun onChildDraw(c: Canvas, r: RecyclerView, v: RecyclerView.ViewHolder, dX: Float, dY: Float, action: Int, active: Boolean) {
             icon?.let {
-                val itemView = viewHolder.itemView
+                val itemView = v.itemView
                 val iconHeight = itemView.height / 3
                 val scale = iconHeight / it.intrinsicHeight.toDouble()
                 val iconWidth = (it.intrinsicWidth * scale).toInt()
@@ -455,56 +387,37 @@ internal class MessagesActivity :
                 val iconTop = itemView.top + iconMarginTopBottom
                 val iconBottom = itemView.bottom - iconMarginTopBottom
                 if (dX > 0) {
-                    // Swiping to the right
                     val iconLeft = itemView.left + iconMarginLeftRight
                     val iconRight = itemView.left + iconMarginLeftRight + iconWidth
                     it.setBounds(iconLeft, iconTop, iconRight, iconBottom)
-                    background.setBounds(
-                        itemView.left,
-                        itemView.top,
-                        itemView.left + dX.toInt(),
-                        itemView.bottom
-                    )
+                    background.setBounds(itemView.left, itemView.top, itemView.left + dX.toInt(), itemView.bottom)
                 } else if (dX < 0) {
-                    // Swiping to the left
                     val iconLeft = itemView.right - iconMarginLeftRight - iconWidth
                     val iconRight = itemView.right - iconMarginLeftRight
                     it.setBounds(iconLeft, iconTop, iconRight, iconBottom)
-                    background.setBounds(
-                        itemView.right + dX.toInt(),
-                        itemView.top,
-                        itemView.right,
-                        itemView.bottom
-                    )
+                    background.setBounds(itemView.right + dX.toInt(), itemView.top, itemView.right, itemView.bottom)
                 } else {
-                    // View is unswiped
                     it.setBounds(0, 0, 0, 0)
                     background.setBounds(0, 0, 0, 0)
                 }
                 background.draw(c)
                 it.draw(c)
             }
-            super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive)
+            super.onChildDraw(c, r, v, dX, dY, action, active)
         }
     }
 
     private inner class MessageListOnScrollListener : RecyclerView.OnScrollListener() {
         override fun onScrollStateChanged(view: RecyclerView, scrollState: Int) {}
-
         override fun onScrolled(view: RecyclerView, dx: Int, dy: Int) {
             val linearLayoutManager = view.layoutManager as LinearLayoutManager?
             if (linearLayoutManager != null) {
                 val lastVisibleItem = linearLayoutManager.findLastVisibleItemPosition()
                 val totalItemCount = view.adapter!!.itemCount
-                if (lastVisibleItem > totalItemCount - 15 &&
-                    totalItemCount != 0 &&
-                    viewModel.messages.canLoadMore(viewModel.appId)
-                ) {
+                if (lastVisibleItem > totalItemCount - 15 && totalItemCount != 0 && viewModel.messages.canLoadMore(viewModel.appId)) {
                     if (!isLoadMore) {
                         isLoadMore = true
-                        launchCoroutine {
-                            loadMore(viewModel.appId)
-                        }
+                        launchCoroutine { loadMore(viewModel.appId) }
                     }
                 }
             }
@@ -513,20 +426,15 @@ internal class MessagesActivity :
 
     private suspend fun updateMissedMessages(id: Long) {
         if (id == -1L) return
-
         val newMessages = MissedMessageUtil(viewModel.client.createService(MessageApi::class.java))
             .missingMessages(id).filterNotNull()
         viewModel.messages.addMessages(newMessages)
-
-        if (newMessages.isNotEmpty()) {
-            updateMessagesForApplication(true, viewModel.appId)
-        }
+        if (newMessages.isNotEmpty()) updateMessagesForApplication(true, viewModel.appId)
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.messages_action, menu)
-        menu.findItem(R.id.action_delete_app).isVisible =
-            viewModel.appId != MessageState.ALL_MESSAGES
+        menu.findItem(R.id.action_delete_app).isVisible = viewModel.appId != MessageState.ALL_MESSAGES
         return super.onCreateOptionsMenu(menu)
     }
 
@@ -535,11 +443,7 @@ internal class MessagesActivity :
             MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.delete_all)
                 .setMessage(R.string.ack)
-                .setPositiveButton(R.string.yes) { _, _ ->
-                    launchCoroutine {
-                        deleteMessages(viewModel.appId)
-                    }
-                }
+                .setPositiveButton(R.string.yes) { _, _ -> launchCoroutine { deleteMessages(viewModel.appId) } }
                 .setNegativeButton(R.string.no, null)
                 .show()
         }
@@ -559,33 +463,19 @@ internal class MessagesActivity :
         val client = ClientFactory.clientToken(settings)
         client.createService(ApplicationApi::class.java)
             .deleteApp(appId)
-            .enqueue(
-                Callback.callInUI(
-                    this,
-                    onSuccess = { refreshAll() },
-                    onError = { Utils.showSnackBar(this, getString(R.string.error_delete_app)) }
-                )
-            )
+            .enqueue(Callback.callInUI(this, { refreshAll() }, { Utils.showSnackBar(this, getString(R.string.error_delete_app)) }))
     }
 
     private suspend fun loadMore(appId: Long): List<MessageWithImage> {
         val messagesWithImages = viewModel.messages.loadMore(appId)
-        withContext(Dispatchers.Main) {
-            updateMessagesAndStopLoading(messagesWithImages)
-        }
+        withContext(Dispatchers.Main) { updateMessagesAndStopLoading(messagesWithImages) }
         return messagesWithImages
     }
 
     private suspend fun updateMessagesForApplication(withLoadingSpinner: Boolean, appId: Long) {
-        if (withLoadingSpinner) {
-            withContext(Dispatchers.Main) {
-                startLoading()
-            }
-        }
+        if (withLoadingSpinner) withContext(Dispatchers.Main) { startLoading() }
         viewModel.messages.loadMoreIfNotPresent(appId)
-        withContext(Dispatchers.Main) {
-            updateMessagesAndStopLoading(viewModel.messages[appId])
-        }
+        withContext(Dispatchers.Main) { updateMessagesAndStopLoading(viewModel.messages[appId]) }
     }
 
     private suspend fun addSingleMessage(message: Message) {
@@ -599,16 +489,12 @@ internal class MessagesActivity :
     }
 
     private suspend fun deleteMessages(appId: Long) {
-        withContext(Dispatchers.Main) {
-            startLoading()
-        }
+        withContext(Dispatchers.Main) { startLoading() }
         val success = viewModel.messages.deleteAll(appId)
         if (success) {
             updateMessagesForApplication(false, viewModel.appId)
         } else {
-            withContext(Dispatchers.Main) {
-                Utils.showSnackBar(this@MessagesActivity, "Delete failed :(")
-            }
+            withContext(Dispatchers.Main) { Utils.showSnackBar(this@MessagesActivity, "Delete failed :(") }
         }
     }
 
@@ -634,7 +520,6 @@ internal class MessagesActivity :
         } catch (e: ApiException) {
             Logger.error(e, "Could not delete client")
         }
-
         viewModel.settings.clear()
         startActivity(Intent(this@MessagesActivity, LoginActivity::class.java))
         finish()
@@ -643,11 +528,7 @@ internal class MessagesActivity :
     private fun updateMessagesAndStopLoading(messageWithImages: List<MessageWithImage>) {
         isLoadMore = false
         stopLoading()
-        if (messageWithImages.isEmpty()) {
-            binding.flipper.displayedChild = 1
-        } else {
-            binding.flipper.displayedChild = 0
-        }
+        if (messageWithImages.isEmpty()) binding.flipper.displayedChild = 1 else binding.flipper.displayedChild = 0
         val adapter = binding.messagesView.adapter as ListMessageAdapter
         adapter.updateList(messageWithImages)
     }
@@ -655,33 +536,23 @@ internal class MessagesActivity :
     private fun ListMessageAdapter.updateList(list: List<MessageWithImage>) {
         this.submitList(if (this.currentList == list) list.toList() else list) {
             val topChild = binding.messagesView.getChildAt(0)
-            if (topChild != null && topChild.top == 0) {
-                binding.messagesView.scrollToPosition(0)
-            }
+            if (topChild != null && topChild.top == 0) binding.messagesView.scrollToPosition(0)
         }
     }
 
-    // --- 新增功能函数 (已修复逻辑) ---
+    // --- ★★★ 自动创建 Token 逻辑 ★★★ ---
     private fun checkAndCreateAppToken() {
         val prefs = getSharedPreferences("auto_config", Context.MODE_PRIVATE)
-        
-        // 1. 检查是否已存在 Token
         val existingToken = prefs.getString("app_token", null)
-        if (existingToken != null) {
-            // 如果你想每次打开都弹窗显示 Token，取消下面这行的注释：
-            // runOnUiThread { showTokenDialog(existingToken) }
-            return
-        }
+        if (existingToken != null) return
 
-        // 2. 后台线程创建应用
         Thread {
             try {
-                // 使用 ClientFactory 创建临时 Client，不依赖 app 对象
+                // 安全获取 Client (重新创建一个临时的，不依赖 ViewModel 初始化时机)
                 val tempSettings = Settings(this@MessagesActivity)
                 val client = ClientFactory.clientToken(tempSettings)
                 val appApi = client.createService(ApplicationApi::class.java)
                 
-                // 创建一个新应用
                 val newApp = Application()
                 newApp.name = "My Python Script"
                 newApp.description = "Auto generated by Android"
@@ -689,7 +560,6 @@ internal class MessagesActivity :
                 val createdApp = appApi.createApp(newApp).execute().body()
                 
                 if (createdApp != null) {
-                    // 保存并显示
                     prefs.edit().putString("app_token", createdApp.token).apply()
                     runOnUiThread { showTokenDialog(createdApp.token) }
                 }
@@ -707,14 +577,12 @@ internal class MessagesActivity :
                 .setCancelable(false)
                 .setPositiveButton("OK", null)
                 .show()
-            
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             clipboard.setPrimaryClip(ClipData.newPlainText("Token", token))
         } catch (e: Exception) {
             // ignore
         }
     }
-    // ----------------
     
     companion object {
         private const val APPLICATION_ORDER = 1
