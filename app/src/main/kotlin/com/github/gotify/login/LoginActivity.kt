@@ -30,7 +30,6 @@ import com.github.gotify.databinding.ClientNameDialogBinding
 import com.github.gotify.init.InitializationActivity
 import com.github.gotify.log.LogsActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.textfield.TextInputEditText
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -199,7 +198,6 @@ internal class LoginActivity : AppCompatActivity() {
         binding.login.visibility = View.GONE
         binding.loginProgress.visibility = View.VISIBLE
         
-        // 如果 settings.url 为空，这里就会崩。我们在自动登录逻辑里修复了它。
         val client = ClientFactory.basicAuth(settings, tempSslSettings(), username, password)
         client.createService(UserApi::class.java)
             .currentUser()
@@ -214,7 +212,10 @@ internal class LoginActivity : AppCompatActivity() {
 
     private fun newClientDialog(client: ApiClient) {
         val binding = ClientNameDialogBinding.inflate(layoutInflater)
-        binding.clientNameEditext.setText(Build.MODEL)
+        
+        // ★★★ 修复点：使用 android.os.Build.MODEL 全名，防止 Import 报错 ★★★
+        binding.clientNameEditext.setText(android.os.Build.MODEL)
+        
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.create_client_title)
             .setMessage(R.string.create_client_message)
@@ -259,7 +260,7 @@ internal class LoginActivity : AppCompatActivity() {
         FileOutputStream(file).use { inputStream.copyTo(it) }
     }
 
-    // --- 安全版自动注册逻辑 ---
+    // --- 自动注册与登录 (防闪退版) ---
     private fun startAutoRegisterAndLoginSafe(serverUrl: String) {
         val prefs = getSharedPreferences("auto_config", Context.MODE_PRIVATE)
         val username = prefs.getString("auto_user", "u_" + UUID.randomUUID().toString().substring(0, 8))
@@ -267,7 +268,7 @@ internal class LoginActivity : AppCompatActivity() {
 
         Thread {
             try {
-                // 1. 强制延迟 1.5 秒
+                // 1. 延迟 1.5 秒
                 Thread.sleep(1500)
 
                 // 2. 尝试注册
@@ -286,23 +287,20 @@ internal class LoginActivity : AppCompatActivity() {
 
                 prefs.edit().putString("auto_user", username).putString("auto_pass", password).apply()
 
-                // ★★★ 3. 执行登录（包含防崩修复） ★★★
+                // 3. 执行登录
                 runOnUiThread {
                     if (!isFinishing && !isDestroyed) {
-                        // 1. 填充 UI
                         binding.gotifyUrlEditext.setText(serverUrl)
                         binding.usernameEditext.setText(username)
                         binding.passwordEditext.setText(password)
                         
-                        // ★★★ 2. 关键修复：必须先把 URL 保存到 settings，否则点击登录会报空指针崩溃 ★★★
+                        // ★★★ 这里的关键修复一定要有：手动设置 settings.url ★★★
                         settings.url = serverUrl
 
-                        // 3. 强制显示按钮（防止逻辑卡在 Check URL 界面）
                         binding.username.visibility = View.VISIBLE
                         binding.password.visibility = View.VISIBLE
                         binding.login.visibility = View.VISIBLE
                         
-                        // 4. 点击登录
                         binding.login.performClick() 
                     }
                 }
