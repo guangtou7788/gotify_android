@@ -4,6 +4,9 @@
     <string name="navigation_drawer_open">打开导航</string>
     <string name="navigation_drawer_close">关闭导航</string>
 
+    <string name="title_activity_settings">设置</string>
+    <string name="title_activity_logs">日志</string>
+
     <string name="url">服务器 URL (例如 https://my.gotify.net)</string>
     <string name="username">用户名</string>
     <string name="password">密码</string>
@@ -41,7 +44,7 @@
     <string name="intro_3"></string>
     
     <string name="logout">注销登录</string>
-    <string name="logout_confirm">确定要退出当前账号吗？</string>
+    <string name="logout_confirm">确定要注销当前账号吗？</string>
     <string name="yes">是</string>
     <string name="no">否</string>
     <string name="delete_all">清空消息</string>
@@ -67,7 +70,6 @@
     <string name="setting_message_layout_normal">默认</string>
     <string name="setting_message_layout_compact">紧凑</string>
 
-    <string name="title_activity_logs">日志</string>
     <string name="log_copy">复制日志</string>
     <string name="log_clear">清空日志</string>
     
