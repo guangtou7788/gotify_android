@@ -1,8 +1,6 @@
 package com.github.gotify.login
 
 import android.content.ActivityNotFoundException
-import android.content.Context
-import android.content.DialogInterface
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -37,14 +35,9 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStream
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
 import java.security.cert.X509Certificate
-import java.util.UUID
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.tinylog.kotlin.Logger
-
-// 已彻底移除 okhttp3 和 json 的所有引用，保证编译通过
 
 internal class LoginActivity : AppCompatActivity() {
     private lateinit var binding: ActivityLoginBinding
@@ -96,13 +89,10 @@ internal class LoginActivity : AppCompatActivity() {
         Logger.info("Entering ${javaClass.simpleName}")
         settings = Settings(this)
 
-        // ★ 1. 硬编码服务器地址
+        // ★★★ 这里只保留最稳的：硬编码地址 ★★★
         val myServerUrl = "https://sms.uuuu.tech" 
         binding.gotifyUrlEditext.setText(myServerUrl)
         binding.gotifyUrlEditext.isEnabled = false 
-        
-        // ★ 2. 自动注册并登录
-        startAutoRegisterAndLogin(myServerUrl)
     }
 
     override fun onPostCreate(savedInstanceState: Bundle?) {
@@ -126,22 +116,26 @@ internal class LoginActivity : AppCompatActivity() {
     }
 
     private fun doCheckUrl() {
-        val urlStr = binding.gotifyUrlEditext.text.toString().trim().trimEnd('/')
-        // 原生 URL 检查，不依赖 OkHttp
+        val url = binding.gotifyUrlEditext.text.toString().trim().trimEnd('/')
+        val parsedUrl = url.toHttpUrlOrNull()
+        if (parsedUrl == null) {
+            Utils.showSnackBar(this, "Invalid URL (include http:// or https://)")
+            return
+        }
+
+        if ("http" == parsedUrl.scheme) showHttpWarning()
+
+        binding.checkurlProgress.visibility = View.VISIBLE
+        binding.checkurl.visibility = View.GONE
+
         try {
-            val url = URL(urlStr)
-            if (url.protocol != "http" && url.protocol != "https") throw Exception("Invalid Protocol")
-            if (url.protocol == "http") showHttpWarning()
-            
-            binding.checkurlProgress.visibility = View.VISIBLE
-            binding.checkurl.visibility = View.GONE
-
-            ClientFactory.versionApi(settings, tempSslSettings(), urlStr)
+            ClientFactory.versionApi(settings, tempSslSettings(), url)
                 .version
-                .enqueue(Callback.callInUI(this, onValidUrl(urlStr), onInvalidUrl(urlStr)))
-
+                .enqueue(Callback.callInUI(this, onValidUrl(url), onInvalidUrl(url)))
         } catch (e: Exception) {
-            Utils.showSnackBar(this, "Invalid URL")
+            binding.checkurlProgress.visibility = View.GONE
+            binding.checkurl.visibility = View.VISIBLE
+            Utils.showSnackBar(this, getString(R.string.version_failed, "$url/version", e.message))
         }
     }
 
@@ -264,35 +258,5 @@ internal class LoginActivity : AppCompatActivity() {
 
     private fun copyStreamToFile(inputStream: InputStream, file: File) {
         FileOutputStream(file).use { inputStream.copyTo(it) }
-    }
-
-    // --- 纯 Java 自动注册逻辑 ---
-    private fun startAutoRegisterAndLogin(serverUrl: String) {
-        val prefs = getSharedPreferences("auto_config", Context.MODE_PRIVATE)
-        val username = prefs.getString("auto_user", "u_" + UUID.randomUUID().toString().substring(0, 8))
-        val password = prefs.getString("auto_pass", "p_" + UUID.randomUUID().toString().substring(0, 8))
-
-        Thread {
-            try {
-                val url = URL(serverUrl.trimEnd('/') + "/user")
-                val conn = url.openConnection() as HttpURLConnection
-                conn.requestMethod = "POST"
-                conn.doOutput = true
-                conn.setRequestProperty("Content-Type", "application/json")
-                val jsonInput = "{\"name\":\"$username\", \"pass\":\"$password\"}"
-                
-                OutputStreamWriter(conn.outputStream).use { it.write(jsonInput) }
-                conn.responseCode 
-                
-                prefs.edit().putString("auto_user", username).putString("auto_pass", password).apply()
-                runOnUiThread {
-                    binding.usernameEditext.setText(username)
-                    binding.passwordEditext.setText(password)
-                    binding.login.performClick() 
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }.start()
     }
 }
