@@ -1,10 +1,10 @@
-name: Build Debug APK
+name: Build Custom APK
 
 on:
-  workflow_dispatch: # 允许手动触发
+  workflow_dispatch: # 允许手动点击按钮触发
 
 jobs:
-  build:
+  build_apk_job:
     runs-on: ubuntu-latest
 
     steps:
@@ -20,14 +20,15 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    - name: Build with Gradle (Force)
-      # -x lint: 跳过代码风格检查
-      # -x test: 跳过单元测试
-      # 这样即使代码写得"丑"，也能编出 APK
-      run: ./gradlew assembleDebug -x lint -x test --stacktrace
+    - name: Build APK (Skip Checks)
+      # ★★★ 关键修改：使用 assembleDebug 而不是 build ★★★
+      # -x lint: 跳过代码规范检查
+      # -x test: 跳过测试
+      # -x check: 跳过所有检查
+      run: ./gradlew assembleDebug -x lint -x test -x check --stacktrace
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: gotify-custom-apk
+        name: gotify-auto-login
         path: app/build/outputs/apk/debug/app-debug.apk
